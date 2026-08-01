@@ -1,4 +1,4 @@
-"""ABC DIGITAL bill generator with per-product warranty tracking."""
+"""ABC DIGITAL bill generator with warranty tracking."""
 
 import calendar
 from datetime import datetime
