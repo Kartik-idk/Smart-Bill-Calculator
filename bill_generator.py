@@ -1,8 +1,22 @@
-"""ABC DIGITAL bill generator with warranty tracking."""
+"""
+ABC DIGITAL Bill Generator with Warranty Tracking & EMI Financing
+=================================================================
+A production-grade, mathematically exact Command-Line Billing & Invoicing
+system built with Python's standard library.
+
+Key Features:
+- Exact banking rounding using `decimal.Decimal` (ROUND_HALF_UP).
+- Dynamic receipt formatting preventing table overflow.
+- Per-item warranty generation and expiry tracking.
+- EMI calculation with annual interest rates and monthly installments.
+- Resilient terminal input validation handling EOF and keyboard interrupts.
+"""
 
 import calendar
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
+import sys
 
 
 GST_RATE = 0.18
@@ -13,71 +27,105 @@ COMPANY_GST_NUMBER = "27ABCDE1234F1Z5"
 COMPANY_LOCATION = "MG Road, Bengaluru, Karnataka - 560001"
 BILL_WIDTH = 128
 TOTAL_LABEL_WIDTH = BILL_WIDTH - 15
-SELLER_BILLS_FOLDER = Path(__file__).resolve().parent
+SELLER_BILLS_FOLDER = Path(__file__).resolve().parent / "invoices"
 
 
 def get_positive_number(prompt):
-    """Return a positive number entered by the user."""
+    """Return a positive numeric value entered by the user."""
     while True:
         try:
-            value = float(input(prompt))
+            raw = input(prompt).strip()
+            if not raw:
+                print("Input cannot be empty. Please enter a number.")
+                continue
+            value = float(raw)
             if value > 0:
                 return value
             print("Please enter a value greater than zero.")
         except ValueError:
-            print("Invalid input. Please enter a number.")
+            print("Invalid input. Please enter a valid number.")
+        except (KeyboardInterrupt, EOFError):
+            print("\n\nOperation cancelled.")
+            sys.exit(0)
 
 
 def get_warranty_months():
     """Return a warranty period in whole months; zero means no warranty."""
     while True:
         try:
-            months = int(input("Enter warranty period in months (0 for no warranty): "))
+            raw = input("Enter warranty period in months (0 for no warranty): ").strip()
+            if not raw:
+                print("Input cannot be empty. Enter 0 if no warranty.")
+                continue
+            months = int(raw)
             if months >= 0:
                 return months
             print("Warranty period cannot be negative.")
         except ValueError:
             print("Invalid input. Please enter a whole number.")
+        except (KeyboardInterrupt, EOFError):
+            print("\n\nOperation cancelled.")
+            sys.exit(0)
 
 
 def get_discount():
-    """Return a valid discount percentage."""
+    """Return a valid discount percentage between 0 and 100."""
     while True:
         try:
-            discount = float(input("Enter discount percentage (0 if none): "))
+            raw = input("Enter discount percentage (0 if none): ").strip()
+            if not raw:
+                return 0.0
+            discount = float(raw)
             if 0 <= discount <= 100:
                 return discount
             print("Discount must be between 0 and 100.")
         except ValueError:
-            print("Invalid input. Please enter a number.")
+            print("Invalid input. Please enter a valid number.")
+        except (KeyboardInterrupt, EOFError):
+            print("\n\nOperation cancelled.")
+            sys.exit(0)
 
 
 def get_non_negative_number(prompt):
     """Return a non-negative number entered by the user."""
     while True:
         try:
-            value = float(input(prompt))
+            raw = input(prompt).strip()
+            if not raw:
+                print("Input cannot be empty. Please enter zero or a positive number.")
+                continue
+            value = float(raw)
             if value >= 0:
                 return value
             print("Please enter zero or a positive number.")
         except ValueError:
-            print("Invalid input. Please enter a number.")
+            print("Invalid input. Please enter a valid number.")
+        except (KeyboardInterrupt, EOFError):
+            print("\n\nOperation cancelled.")
+            sys.exit(0)
 
 
 def get_emi_months():
-    """Return one of the supported EMI durations."""
+    """Return one of the supported EMI durations (3, 6, 9, or 12 months)."""
     while True:
         try:
-            months = int(input("Choose EMI duration (3, 6, 9, or 12 months): "))
+            raw = input("Choose EMI duration (3, 6, 9, or 12 months): ").strip()
+            if not raw:
+                print("Please select one of 3, 6, 9, or 12.")
+                continue
+            months = int(raw)
             if months in EMI_TERMS:
                 return months
             print("Please choose 3, 6, 9, or 12 months.")
         except ValueError:
             print("Invalid input. Please enter a whole number.")
+        except (KeyboardInterrupt, EOFError):
+            print("\n\nOperation cancelled.")
+            sys.exit(0)
 
 
 def get_payment_details(grand_total):
-    """Collect a full-payment or EMI plan for the completed bill."""
+    """Collect a full-payment or EMI plan for the completed bill using Decimal precision."""
     if grand_total < MINIMUM_EMI_AMOUNT:
         print(
             f"\nEMI is available for bills of Rs. {MINIMUM_EMI_AMOUNT:,.2f} and above."
@@ -85,44 +133,60 @@ def get_payment_details(grand_total):
         return {"method": "Full Payment"}
 
     while True:
-        print("\nPayment options")
-        print("1. Full Payment")
-        print("2. EMI")
-        choice = input("Choose payment option (1-2): ").strip()
+        try:
+            print("\nPayment options")
+            print("1. Full Payment")
+            print("2. EMI")
+            choice = input("Choose payment option (1-2): ").strip()
 
-        if choice == "1":
-            return {"method": "Full Payment"}
+            if choice == "1":
+                return {"method": "Full Payment"}
 
-        if choice == "2":
-            months = get_emi_months()
-            annual_interest_rate = get_non_negative_number(
-                "Enter annual interest rate (%): "
-            )
-            interest_amount = round(
-                grand_total * annual_interest_rate * months / 1200,
-                2,
-            )
-            total_emi_payable = round(grand_total + interest_amount, 2)
-            monthly_installment = round(total_emi_payable / months, 2)
-            return {
-                "method": "EMI",
-                "months": months,
-                "annual_interest_rate": annual_interest_rate,
-                "interest_amount": interest_amount,
-                "total_emi_payable": total_emi_payable,
-                "monthly_installment": monthly_installment,
-            }
+            if choice == "2":
+                months = get_emi_months()
+                annual_interest_rate = get_non_negative_number(
+                    "Enter annual interest rate (%): "
+                )
+                gt_dec = Decimal(str(round(grand_total, 2)))
+                rate_dec = Decimal(str(annual_interest_rate))
+                months_dec = Decimal(str(months))
 
-        print("Invalid choice. Please select 1 or 2.")
+                interest_amount = (gt_dec * rate_dec * months_dec / Decimal("1200")).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+                total_emi_payable = (gt_dec + interest_amount).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+                monthly_installment = (total_emi_payable / months_dec).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+
+                return {
+                    "method": "EMI",
+                    "months": months,
+                    "annual_interest_rate": float(annual_interest_rate),
+                    "interest_amount": float(interest_amount),
+                    "total_emi_payable": float(total_emi_payable),
+                    "monthly_installment": float(monthly_installment),
+                }
+
+            print("Invalid choice. Please select 1 or 2.")
+        except (KeyboardInterrupt, EOFError):
+            print("\n\nOperation cancelled.")
+            sys.exit(0)
 
 
 def get_customer_details():
     """Collect customer information for a new bill."""
-    print("\nEnter customer details")
-    customer_name = input("Customer name: ").strip() or "Walk-in Customer"
-    customer_id = input("Customer ID: ").strip() or "N/A"
-    telephone_number = input("Telephone number: ").strip() or "N/A"
-    return customer_name, customer_id, telephone_number
+    try:
+        print("\nEnter customer details")
+        customer_name = input("Customer name: ").strip() or "Walk-in Customer"
+        customer_id = input("Customer ID: ").strip() or "N/A"
+        telephone_number = input("Telephone number: ").strip() or "N/A"
+        return customer_name, customer_id, telephone_number
+    except (KeyboardInterrupt, EOFError):
+        print("\n\nOperation cancelled.")
+        sys.exit(0)
 
 
 def add_months(date_value, months):
@@ -135,17 +199,28 @@ def add_months(date_value, months):
 
 
 def calculate_bill_totals(items, discount_percent):
-    """Calculate subtotal, discount, GST, and grand total for the items."""
-    subtotal = sum(item["quantity"] * item["price"] for item in items)
-    discount_amount = subtotal * discount_percent / 100
+    """Calculate subtotal, discount, GST, and grand total using exact Decimal arithmetic."""
+    subtotal = sum(
+        (Decimal(str(item["quantity"])) * Decimal(str(item["price"])) for item in items),
+        Decimal("0.00"),
+    )
+    disc_pct = Decimal(str(discount_percent))
+    discount_amount = (subtotal * disc_pct / Decimal("100")).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
     taxable_amount = subtotal - discount_amount
-    gst_amount = taxable_amount * GST_RATE
-    grand_total = taxable_amount + gst_amount
+    gst_rate = Decimal(str(GST_RATE))
+    gst_amount = (taxable_amount * gst_rate).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    grand_total = (taxable_amount + gst_amount).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
     return {
-        "subtotal": subtotal,
-        "discount_amount": discount_amount,
-        "gst_amount": gst_amount,
-        "grand_total": grand_total,
+        "subtotal": float(subtotal),
+        "discount_amount": float(discount_amount),
+        "gst_amount": float(gst_amount),
+        "grand_total": float(grand_total),
     }
 
 
@@ -212,7 +287,10 @@ def create_bill(
     ]
 
     for item in items:
-        item_total = item["quantity"] * item["price"]
+        item_qty = Decimal(str(item["quantity"]))
+        item_price = Decimal(str(item["price"]))
+        item_total = float((item_qty * item_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
         warranty_text = (
             f"{item['warranty_months']} month(s)"
             if item["warranty_months"] > 0
@@ -223,8 +301,13 @@ def create_bill(
             if item["expiry_date"]
             else "-"
         )
+        # Prevent table overflow by truncating overly long names cleanly
+        product_display = item["name"]
+        if len(product_display) > 20:
+            product_display = product_display[:17] + "..."
+
         lines.append(
-            f"{item['name'][:20]:<20} | {item['quantity']:>8.2f} | "
+            f"{product_display:<20} | {item['quantity']:>8.2f} | "
             f"{item['price']:>12.2f} | {item_total:>13.2f} | "
             f"{warranty_text:>14} | {expiry_text:>20} | "
             f"{item['warranty_id']:>23}"
@@ -270,7 +353,12 @@ def check_warranty_status(warranty_records):
         print("\nNo warranty records have been generated in this session yet.")
         return
 
-    warranty_id = input("Enter warranty ID: ").strip()
+    try:
+        warranty_id = input("Enter warranty ID: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\n\nOperation cancelled.")
+        return
+
     record = next(
         (item for item in warranty_records if item["warranty_id"] == warranty_id),
         None,
@@ -295,8 +383,10 @@ def check_warranty_status(warranty_records):
 
 
 def save_bill_to_archive(bill_text, invoice_number):
-    """Save a bill directly in the mini-project folder."""
-    bill_path = SELLER_BILLS_FOLDER / f"bill_{invoice_number}.txt"
+    """Save a bill directly in the invoices folder."""
+    invoices_folder = SELLER_BILLS_FOLDER
+    invoices_folder.mkdir(parents=True, exist_ok=True)
+    bill_path = invoices_folder / f"bill_{invoice_number}.txt"
     bill_path.write_text(bill_text, encoding="utf-8")
     return bill_path
 
@@ -313,71 +403,76 @@ def main():
     warranty_records = []
 
     while True:
-        print("\n1. Add product")
-        print("2. Generate bill")
-        print("3. Check warranty status")
-        print("4. Exit")
-        choice = input("Enter your choice (1-4): ").strip()
+        try:
+            print("\n1. Add product")
+            print("2. Generate bill")
+            print("3. Check warranty status")
+            print("4. Exit")
+            choice = input("Enter your choice (1-4): ").strip()
 
-        if choice == "1":
-            if customer_name is None:
-                customer_name, customer_id, telephone_number = get_customer_details()
+            if choice == "1":
+                if customer_name is None:
+                    customer_name, customer_id, telephone_number = get_customer_details()
 
-            product_name = input("Enter product name: ").strip()
-            if not product_name:
-                print("Product name cannot be empty.")
-                continue
+                product_name = input("Enter product name: ").strip()
+                if not product_name:
+                    print("Product name cannot be empty.")
+                    continue
 
-            quantity = get_positive_number("Enter quantity: ")
-            price = get_positive_number("Enter price per unit: ")
-            warranty_months = get_warranty_months()
-            items.append(
-                {
-                    "name": product_name,
-                    "quantity": quantity,
-                    "price": price,
-                    "warranty_months": warranty_months,
-                }
-            )
-            print(f"{product_name} added successfully.")
+                quantity = get_positive_number("Enter quantity: ")
+                price = get_positive_number("Enter price per unit: ")
+                warranty_months = get_warranty_months()
+                items.append(
+                    {
+                        "name": product_name,
+                        "quantity": quantity,
+                        "price": price,
+                        "warranty_months": warranty_months,
+                    }
+                )
+                print(f"{product_name} added successfully.")
 
-        elif choice == "2":
-            if not items:
-                print("No products added. Please add at least one product.")
-                continue
+            elif choice == "2":
+                if not items:
+                    print("No products added. Please add at least one product.")
+                    continue
 
-            discount = get_discount()
-            totals = calculate_bill_totals(items, discount)
-            payment_details = get_payment_details(totals["grand_total"])
-            bill_text, invoice_number, new_warranty_records = create_bill(
-                customer_name,
-                customer_id,
-                telephone_number,
-                items,
-                discount,
-                payment_details=payment_details,
-            )
-            warranty_records.extend(new_warranty_records)
-            print(bill_text)
+                discount = get_discount()
+                totals = calculate_bill_totals(items, discount)
+                payment_details = get_payment_details(totals["grand_total"])
+                bill_text, invoice_number, new_warranty_records = create_bill(
+                    customer_name,
+                    customer_id,
+                    telephone_number,
+                    items,
+                    discount,
+                    payment_details=payment_details,
+                )
+                warranty_records.extend(new_warranty_records)
+                print(bill_text)
 
-            bill_path = save_bill_to_archive(bill_text, invoice_number)
-            print(f"\nBill archived for seller at: {bill_path}")
+                bill_path = save_bill_to_archive(bill_text, invoice_number)
+                print(f"\nBill archived for seller at: {bill_path}")
 
-            # Keep warranty records for checks, but begin a fresh customer bill.
-            customer_name = None
-            customer_id = None
-            telephone_number = None
-            items = []
+                # Keep warranty records for checks, but begin a fresh customer bill.
+                customer_name = None
+                customer_id = None
+                telephone_number = None
+                items = []
 
-        elif choice == "3":
-            check_warranty_status(warranty_records)
+            elif choice == "3":
+                check_warranty_status(warranty_records)
 
-        elif choice == "4":
-            print("Thank you for using ABC DIGITAL Bill Generator!")
+            elif choice == "4":
+                print("Thank you for using ABC DIGITAL Bill Generator!")
+                break
+
+            else:
+                print("Invalid choice. Please select a number from 1 to 4.")
+
+        except (KeyboardInterrupt, EOFError):
+            print("\n\nOperation cancelled. Thank you!")
             break
-
-        else:
-            print("Invalid choice. Please select a number from 1 to 4.")
 
 
 if __name__ == "__main__":
