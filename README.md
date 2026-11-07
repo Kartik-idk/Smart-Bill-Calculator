@@ -1,5 +1,6 @@
 # Smart Bill Calculator
 
+[![Test Suite](https://github.com/Kartik-idk/Smart-Bill-Calculator/actions/workflows/test.yml/badge.svg)](https://github.com/Kartik-idk/Smart-Bill-Calculator/actions)
 [![Python Version](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 [![Tests](https://img.shields.io/badge/Tests-26%20Passing-brightgreen.svg)]()
 [![Dependencies](https://img.shields.io/badge/Dependencies-Zero%20External-success.svg)]()
