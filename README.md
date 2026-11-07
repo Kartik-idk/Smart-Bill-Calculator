@@ -6,9 +6,9 @@
 [![Code Style](https://img.shields.io/badge/Code%20Style-PEP%208-informational.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A production-quality, mathematically exact Command-Line Billing, Warranty Tracking & Invoicing system written in Python. 
+> A dependable, mathematically exact command-line billing, warranty tracking, and invoicing utility written in Python.
 
-Built originally as a collegiate Python mini-project for **ABC DIGITAL** and engineered into a robust, single-source-of-truth architecture adhering to exact decimal rounding guarantees (`ROUND_HALF_UP`), per-product warranty life-cycle management, and flexible EMI financing.
+Engineered as a clean, single-source-of-truth command-line utility adhering to exact decimal rounding guarantees (`ROUND_HALF_UP`), per-product warranty lifecycle management, dynamic GST tax calculation, and flexible EMI financing.
 
 ---
 
@@ -20,6 +20,23 @@ Standard retail billing scripts often suffer from three critical flaws:
 3. **Lack of Lifecycle Services:** Basic calculators discard post-sale metadata, omitting per-item warranty tracking, customer record association, and flexible financing options (EMI).
 
 **Smart Bill Calculator** solves these issues in a single, coherent, self-contained implementation with exact banking arithmetic using Python's standard library `Decimal`, dynamic column truncation, and clean invoice archiving.
+
+---
+
+## 🏗️ System Workflow & Architecture
+
+```mermaid
+flowchart TD
+    A["Input Line Items & Warranty Terms"] --> B["Calculate Subtotal (decimal.Decimal)"]
+    B --> C["Apply Discount & 18% GST (ROUND_HALF_UP)"]
+    C --> D{"Select Payment Mode"}
+    D -->|Full Payment| E["Grand Total Settlement"]
+    D -->|EMI Financing (>= Rs. 5,000)| F["Compute Interest & Monthly Installments"]
+    E --> G["Format 128-Column Tax Invoice"]
+    F --> G
+    G --> H["Archive Plaintext Receipt to invoices/"]
+    G --> I["Register Unique Serialized Warranty IDs"]
+```
 
 ---
 
@@ -42,7 +59,7 @@ Standard retail billing scripts often suffer from three critical flaws:
 
 ## 🖥️ Terminal Interface Preview
 
-```
+```text
 ================================================================================================================================
                                                           ABC DIGITAL                                                           
                                              MG Road, Bengaluru, Karnataka - 560001                                             
@@ -51,9 +68,9 @@ Standard retail billing scripts often suffer from three critical flaws:
 ================================================================================================================================
 Invoice No. : 20261107142947396836
 Date & Time : 07-11-2026 02:29 PM
-Customer ID : CUST-042
-Customer    : Kartik Pradhan
-Telephone   : 9876543210
+Customer ID : CUST-001
+Customer    : Sample Customer
+Telephone   : +91 98000 00000
 --------------------------------------------------------------------------------------------------------------------------------
 Product              |      Qty |        Price |         Total |       Warranty |   Expiry Date & Time |             Warranty ID
 --------------------------------------------------------------------------------------------------------------------------------
@@ -98,7 +115,7 @@ make run
 
 Upon startup, the application presents a clean interactive menu:
 
-```
+```text
 =============================================
  WELCOME TO ABC DIGITAL BILL GENERATOR
 =============================================
@@ -118,17 +135,13 @@ Upon startup, the application presents a clean interactive menu:
 
 ## 🏗️ Project Architecture
 
-The repository enforces a clean, single-source-of-truth structure without artificial packaging overhead or competing entry points:
-
-```
+```text
 Smart-Bill-Calculator/
 ├── bill_generator.py          # CANONICAL SOURCE OF TRUTH (Engine, Formatter, CLI, Storage)
 ├── tests/                     # Automated test suite
 │   ├── __init__.py
 │   └── test_bill_generator.py # 26 unit and integration tests
 ├── invoices/                  # Output directory for archived customer receipts
-│   ├── bill_20260802005051.txt
-│   └── bill_20260802005707.txt
 ├── .gitignore                 # Clean repository hygiene rules
 ├── LICENSE                    # MIT Open Source License
 ├── Makefile                   # Ergonomic developer shortcuts (run, test, clean)
@@ -139,20 +152,15 @@ Smart-Bill-Calculator/
 
 ## 🧪 Automated Testing
 
-The project includes 26 automated unit and integration tests covering calculation proofs, date arithmetic, EMI mathematics, formatting truncation, and interactive workflows.
+The project includes 26 automated unit and integration tests covering calculation proofs, date arithmetic, EMI mathematics, formatting truncation, and interactive workflows:
 
-Run all tests using the Makefile:
-```bash
-make test
-```
-Or directly with Python's built-in `unittest` runner:
 ```bash
 python3 -m unittest discover tests -v
 ```
 
 ### Test Coverage Highlights
 - ✅ **Mathematical Accuracy:** Decimal arithmetic verification for Subtotals, Discounts, 18% GST, and Grand Totals.
-- ✅ **Boundary & Calendar Calculations:** Validates `add_months()` across calendar years and month-end dates (e.g. January 31 + 1 month = February 28).
+- ✅ **Boundary & Calendar Calculations:** Validates `add_months()` across calendar years and month-end dates (e.g., January 31 + 1 month = February 28).
 - ✅ **Financing Proofs:** Tests EMI threshold enforcement (< Rs. 5,000 disabled), interest accrual, total payable amounts, and monthly installments.
 - ✅ **Warranty Lifecycle:** Verifies active vs. expired status determination based on real-time clock comparison.
 - ✅ **Formatting Resilience:** Ensures product names longer than 20 characters truncate gracefully with `...` without misaligning column borders.
